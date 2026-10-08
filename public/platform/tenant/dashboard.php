@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/_fatal_catch.php';
 
 /**
  * Tenant Dashboard - Main landing page for tenant users
