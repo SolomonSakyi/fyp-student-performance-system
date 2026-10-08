@@ -199,7 +199,7 @@ $subscription = $db->fetchOne(
      FROM tenant_subscriptions ts
      JOIN subscription_plans sp ON ts.plan_id = sp.id
      WHERE ts.tenant_id = ? AND ts.status IN ('active', 'trial')
-     AND (ts.deleted_at IS NULL OR ts.deleted_at = '')
+     AND ts.deleted_at IS NULL
      ORDER BY ts.created_at DESC LIMIT 1",
     [$tenantId]
 );
