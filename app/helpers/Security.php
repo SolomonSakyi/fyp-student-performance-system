@@ -20,6 +20,12 @@
  *  - Added is_tenant_admin() - positive admin test, sibling of is_super_admin().
  *    Reads $_SESSION['is_tenant_admin'], which login.php now writes.
  *
+ * TEMPORARY (2026-10-08): display_errors forced on for 500 diagnosis.
+ *   The line `ini_set('display_errors', $isLocalhost ? '1' : '0');`
+ *   has been changed to `ini_set('display_errors', '1');` so the
+ *   PHP fatal error behind the dashboard 500 appears in the browser.
+ *   MUST BE REVERTED to the $isLocalhost ternary after diagnosis.
+ *
  * This file is intentionally side-effect-light: it defines functions only,
  * except for the one-time session bootstrap which is guarded so it can be
  * included from app/bootstrap.php exactly once.
@@ -74,7 +80,7 @@ if (session_status() === PHP_SESSION_NONE && !defined('EDUTRACK_SESSION_STARTED'
 if (!defined('EDUTRACK_ERRORS_CONFIGURED')) {
     define('EDUTRACK_ERRORS_CONFIGURED', true);
     $isLocalhost = $isLocalhost ?? in_array($_SERVER['REMOTE_ADDR'] ?? '', ['127.0.0.1', '::1'], true);
-    ini_set('display_errors', $isLocalhost ? '1' : '0');
+    ini_set('display_errors', '1');
     ini_set('display_startup_errors', $isLocalhost ? '1' : '0');
     ini_set('log_errors', '1');
     // Log path: sibling of the webroot. Falls back to syslog if not writable.
