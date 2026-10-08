@@ -1,0 +1,77 @@
+# ============================================================
+# EDUTRACK PLATFORM - Nginx Configuration
+# ============================================================
+
+# ============================================================
+# SUPER ADMIN DOMAIN
+# ============================================================
+server {
+    listen 80;
+    listen 443 ssl http2;
+    
+    server_name admin.edutrack.com admin.edutrack.local;
+    
+    # SSL Configuration (production)
+    ssl_certificate /etc/ssl/certs/edutrack.crt;
+    ssl_certificate_key /etc/ssl/private/edutrack.key;
+    
+    root /var/www/edutrack/public;
+    index index.php index.html;
+    
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+    
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/var/run/php/php8.1-fpm.sock;
+        fastcgi_param APP_ENV production;
+        fastcgi_param PLATFORM_DOMAIN admin.edutrack.com;
+    }
+    
+    # Security headers
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    
+    # Error pages
+    error_page 404 /errors/domain_not_found.php;
+    error_page 403 /errors/forbidden.php;
+}
+
+# ============================================================
+# TENANT DOMAINS
+# ============================================================
+server {
+    listen 80;
+    listen 443 ssl http2;
+    
+    server_name *.edutrack.com *.edutrack.local;
+    
+    # SSL Configuration (production)
+    ssl_certificate /etc/ssl/certs/edutrack_wildcard.crt;
+    ssl_certificate_key /etc/ssl/private/edutrack_wildcard.key;
+    
+    root /var/www/edutrack/public;
+    index index.php index.html;
+    
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+    
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/var/run/php/php8.1-fpm.sock;
+        fastcgi_param APP_ENV production;
+        fastcgi_param PLATFORM_DOMAIN admin.edutrack.com;
+    }
+    
+    # Security headers
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    
+    # Error pages
+    error_page 404 /errors/domain_not_found.php;
+    error_page 403 /errors/forbidden.php;
+}

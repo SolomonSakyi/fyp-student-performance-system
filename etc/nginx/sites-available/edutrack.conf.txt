@@ -1,0 +1,30 @@
+# ============================================================
+# EDUTRACK PLATFORM - Apache Configuration
+# ============================================================
+
+<VirtualHost *:80>
+    ServerName admin.edutrack.com
+    ServerAlias *.edutrack.com *.edutrack.local
+    
+    DocumentRoot /var/www/edutrack/public
+    
+    <Directory /var/www/edutrack/public>
+        Options -Indexes +FollowSymLinks
+        AllowOverride All
+        Require all granted
+        
+        RewriteEngine On
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteCond %{REQUEST_FILENAME} !-d
+        RewriteRule ^(.*)$ /index.php?$1 [L,QSA]
+    </Directory>
+    
+    # Security headers
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "DENY"
+    Header set X-XSS-Protection "1; mode=block"
+    
+    # Error pages
+    ErrorDocument 404 /errors/domain_not_found.php
+    ErrorDocument 403 /errors/forbidden.php
+</VirtualHost>

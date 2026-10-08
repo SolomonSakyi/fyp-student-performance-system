@@ -1,0 +1,86 @@
+{
+    "name": "edutrack/esis",
+    "description": "EduTrack Enterprise Student Information System",
+    "type": "project",
+    "license": "proprietary",
+    "keywords": [
+        "school management",
+        "student information system",
+        "education",
+        "ghana"
+    ],
+    "authors": [
+        {
+            "name": "EduTrack Development Team",
+            "email": "dev@edutrack.com"
+        }
+    ],
+    "require": {
+        "php": ">=8.0",
+        "ext-pdo": "*",
+        "ext-mysqli": "*",
+        "ext-json": "*",
+        "ext-gd": "*",
+        "ext-mbstring": "*",
+        "ext-zip": "*",
+        "ext-fileinfo": "*",
+        "dompdf/dompdf": "^2.0",
+        "phpoffice/phpspreadsheet": "^1.29",
+        "firebase/php-jwt": "^6.4",
+        "vlucas/phpdotenv": "^5.5",
+        "monolog/monolog": "^3.3",
+        "phpmailer/phpmailer": "^6.8",
+        "tecnickcom/tcpdf": "^6.6"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.5",
+        "squizlabs/php_codesniffer": "^3.7",
+        "friendsofphp/php-cs-fixer": "^3.13"
+    },
+    "autoload": {
+        "psr-4": {
+            "EduTrack\\": "app/"
+        },
+        "files": [
+            "app/helpers/functions.php"
+        ]
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "EduTrack\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "post-install-cmd": [
+            "EduTrack\\Composer\\Scripts::postInstall"
+        ],
+        "post-update-cmd": [
+            "EduTrack\\Composer\\Scripts::postUpdate"
+        ],
+        "migrate": "database/scripts/migrate.sh",
+        "seed": "database/scripts/seed.sh",
+        "backup": "database/scripts/backup.sh",
+        "test": "phpunit"
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "preferred-install": "dist",
+        "sort-packages": true,
+        "allow-plugins": {
+            "php-http/discovery": true
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "repositories": [
+        {
+            "type": "composer",
+            "url": "https://repo.packagist.org"
+        }
+    ],
+    "support": {
+        "email": "support@edutrack.com",
+        "issues": "https://github.com/edutrack/esis/issues",
+        "source": "https://github.com/edutrack/esis"
+    }
+}

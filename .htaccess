@@ -1,0 +1,40 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # S20 - block direct web access to sensitive directories
+    RewriteRule ^(?:config|app|database|storage|vendor)/ - [F,L]
+
+    # Redirect all requests to public/index.php unless file exists
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ index.php [QSA,L]
+</IfModule>
+
+# Security Headers
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "DENY"
+    Header set X-XSS-Protection "1; mode=block"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+    Header set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+</IfModule>
+
+# Disable directory browsing
+Options -Indexes
+
+# Protect sensitive files
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+<FilesMatch "^(config\.php|\.env|composer\.json|composer\.lock|DatabaseHelper\.php)$">
+    Require all denied
+</FilesMatch>
+
+# S20 - deny backup / editor / database dumps
+<FilesMatch "\.(bak|old|orig|save|swp|swo|log|sql|md|ini|yaml|yml)$">
+    Require all denied
+</FilesMatch>
+
+# Set default charset
+AddDefaultCharset UTF-8

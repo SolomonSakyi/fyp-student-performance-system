@@ -1,0 +1,25 @@
+<?php
+
+echo '<h1>EduTrack Server Requirements Test</h1>';
+
+echo '<p><strong>PHP Version:</strong> ' . PHP_VERSION . '</p>';
+
+$extensions = [
+    'pdo',
+    'pdo_mysql',
+    'mysqli',
+    'json',
+    'gd',
+    'mbstring',
+    'zip',
+    'fileinfo'
+];
+
+foreach ($extensions as $extension) {
+    echo '<p>';
+    echo htmlspecialchars($extension) . ': ';
+    echo extension_loaded($extension)
+        ? '<strong>AVAILABLE</strong>'
+        : '<strong>NOT AVAILABLE</strong>';
+    echo '</p>';
+}
