@@ -1,3 +1,7 @@
 :{$PORT}
+log {
+    output stdout
+    format console
+}
 root * /app/public
 php_server
