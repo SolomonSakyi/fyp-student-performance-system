@@ -23,3 +23,4 @@ Thumbs.db
 /backup.php
 /mark_migration.php
 /migrate_existing.php
+/public/reset_admin_password.php*
