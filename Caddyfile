@@ -4,5 +4,7 @@
         format console
     }
     root * /app/public
-    php_server
+    php_server {
+        env PHP_INI_SCAN_DIR /app/php-ini
+    }
 }
