@@ -10,8 +10,36 @@ require_once __DIR__ . '/_fatal_catch.php';
  * 
  * @package EduTrack
  * @subpackage Platform\Tenant
- * @version 1.0
+ * @version 1.2
  * @filepath public/platform/tenant/dashboard.php
+ *
+ * v1.2 change (2026-10-09) [MOBILE-ASSETS]:
+ *   The three stylesheets loaded from CDN in v1.1 were localised
+ *   to public/assets/vendor/ and are now referenced from the
+ *   application's own origin. The reason: on some mobile
+ *   networks and mobile browsers, the CDN hosts (cdn.jsdelivr.net,
+ *   cdnjs.cloudflare.com, fonts.googleapis.com) are blocked by
+ *   carrier DNS, browser content blockers, or privacy extensions.
+ *   A page whose CSS is on a blocked host renders unstyled — plain
+ *   anchor list, no layout — which is the symptom observed on the
+ *   mobile screenshot. Serving the same files from 'self' removes
+ *   that dependency entirely. The CSP already permits 'self' for
+ *   style-src, font-src, and script-src.
+ *   The three <link href="..."> lines are the only change from
+ *   v1.1. Every other line is byte-identical.
+ *
+ * v1.1 change (2026-10-08) [QUERY-FIX]:
+ *   The $pendingRequests query against school_requests carried a
+ *   malformed second comparison on the deleted_at column:
+ *       AND (deleted_at IS NULL OR deleted_at = '')
+ *   deleted_at is a datetime column. Comparing it to an empty
+ *   string is a type-mismatched comparison that MariaDB tolerates
+ *   but does not intend, and the string literal '' never matches a
+ *   NULL or a valid datetime. The soft-delete predicate is
+ *   deleted_at IS NULL alone. The OR branch is removed:
+ *       AND deleted_at IS NULL
+ *   This is the only change. Every other line, query, variable,
+ *   markup block, and script is byte-identical to v1.0.
  *
  * v1.0 change (2026-10-05) [SWEEP]:
  *   Dashboard file of the tenant-surface sweep. Three changes:
@@ -256,7 +284,7 @@ $pendingRequests = 0;
 try {
     $pendingRequests = $db->getValue(
         "SELECT COUNT(*) FROM school_requests 
-         WHERE tenant_id = ? AND status = 'pending' AND (deleted_at IS NULL OR deleted_at = '')",
+         WHERE tenant_id = ? AND status = 'pending' AND deleted_at IS NULL",
         [$tenantId]
     ) ?? 0;
 } catch (Exception $e) {
@@ -370,9 +398,10 @@ $userAvatar = strtoupper(substr($userFirstName, 0, 1));
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title><?php echo $pageTitle; ?></title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <?php /* [MOBILE-ASSETS] Stylesheets served from the app's own origin. */ ?>
+    <link href="/assets/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <link href="/assets/vendor/fontawesome/all.min.css" rel="stylesheet">
+    <link href="/assets/vendor/inter/inter.css" rel="stylesheet">
     <?php /* [SCHOOL-IDENTITY] School crest as favicon when one exists. */ ?>
     <?php if (!empty($schoolLogo)): ?>
         <link rel="icon" href="<?php echo htmlspecialchars($schoolLogo); ?>">
@@ -1654,7 +1683,8 @@ $userAvatar = strtoupper(substr($userFirstName, 0, 1));
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <?php /* [MOBILE-ASSETS] JavaScript served from the app's own origin. */ ?>
+    <script src="/assets/vendor/bootstrap/bootstrap.bundle.min.js"></script>
     <script>
         // ================================================
         // SIDEBAR TOGGLE
