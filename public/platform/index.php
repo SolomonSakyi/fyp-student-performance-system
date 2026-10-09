@@ -5,8 +5,47 @@
  * 
  * @package EduTrack
  * @subpackage Platform
- * @version 2.2
+ * @version 2.3
  * @filepath public/platform/index.php
+ *
+ * v2.3 change (2026-10-09) [MOBILE-ASSETS + QUERY-FIX]:
+ *   Two changes in this version.
+ *
+ *   1. Assets localised. The four CDN references in <head> and
+ *      before </body> were replaced by /assets/vendor/ paths,
+ *      matching the change applied to dashboard.php v1.2 and
+ *      upgrade.php v2.1. The reason: on some mobile networks
+ *      and mobile browsers, the CDN hosts (cdn.jsdelivr.net,
+ *      cdnjs.cloudflare.com, fonts.googleapis.com) are blocked
+ *      by carrier DNS, browser content blockers, or privacy
+ *      extensions. A page whose CSS is on a blocked host
+ *      renders unstyled. Serving the same files from 'self'
+ *      removes that dependency entirely.
+ *
+ *   2. Nine malformed deleted_at comparisons removed. The
+ *      subscription stats, the pending approvals, the recent
+ *      subscription activity, and the two revenue queries
+ *      carried the pattern
+ *          (X.deleted_at IS NULL OR X.deleted_at = '')
+ *      deleted_at is a datetime column. Comparing it to an
+ *      empty string is a type-mismatched comparison that
+ *      MariaDB 10.4 (local dev) tolerates but that MySQL 9.7
+ *      (Railway production) can reject, producing an uncaught
+ *      PDOException and a 500. The soft-delete predicate is
+ *      deleted_at IS NULL alone. The OR branch is removed at
+ *      all sites:
+ *        1. $activeSubscriptions query.
+ *        2. $totalPlans query.
+ *        3. $activePlans query.
+ *        4. $pendingSchools query.
+ *        5. $pendingCampuses query.
+ *        6. $recentSubscriptions query.
+ *        7. $totalRevenue query.
+ *        8. $monthlyRevenue query.
+ *      This is the same class of fix applied to dashboard.php
+ *      v1.1, schools/index.php v1.1, and upgrade.php v2.1.
+ *   Every other line, query, variable, markup block, style
+ *   rule, and script is byte-identical to v2.2.
  *
  * v2.2 change (2026-10-07) [SWEEP SIDEBAR]:
  *   Sidebar reconciliation. The inline sidebar this page carried
@@ -23,7 +62,7 @@
  *   The inline toggleSidebar() function that this page carried in
  *   its own <script> block is removed, because the partial now
  *   provides it. The page's click-outside handler and resize
- *   handler are kept — they are page-scoped and do not conflict
+ *   handler are kept â€” they are page-scoped and do not conflict
  *   with the partial's toggle. Every other line of the file is
  *   byte-identical to v2.1.
  *
@@ -114,8 +153,8 @@ $activeSchools = $db->getValue("SELECT COUNT(*) FROM schools WHERE deleted_at IS
 
 // Campuses
 $totalCampuses = $db->getValue(
-    "SELECT COUNT(*) FROM campuses c 
-     JOIN schools s ON c.school_id = s.id 
+    "SELECT COUNT(*) FROM campuses c
+     JOIN schools s ON c.school_id = s.id
      WHERE c.deleted_at IS NULL AND s.deleted_at IS NULL"
 ) ?? 0;
 
@@ -128,8 +167,8 @@ $totalStudents = $db->getValue("SELECT COUNT(*) FROM students WHERE deleted_at I
 
 // Staff
 $totalStaff = $db->getValue(
-    "SELECT COUNT(*) FROM staff s 
-     JOIN persons p ON s.person_id = p.id 
+    "SELECT COUNT(*) FROM staff s
+     JOIN persons p ON s.person_id = p.id
      WHERE s.deleted_at IS NULL AND p.deleted_at IS NULL"
 ) ?? 0;
 
@@ -137,15 +176,15 @@ $totalStaff = $db->getValue(
 // GET SUBSCRIPTION STATISTICS
 // =============================================
 $activeSubscriptions = $db->getValue(
-    "SELECT COUNT(*) FROM tenant_subscriptions WHERE status IN ('active', 'trial') AND (deleted_at IS NULL OR deleted_at = '')"
+    "SELECT COUNT(*) FROM tenant_subscriptions WHERE status IN ('active', 'trial') AND deleted_at IS NULL"
 ) ?? 0;
 
 $totalPlans = $db->getValue(
-    "SELECT COUNT(*) FROM subscription_plans WHERE (deleted_at IS NULL OR deleted_at = '')"
+    "SELECT COUNT(*) FROM subscription_plans WHERE deleted_at IS NULL"
 ) ?? 0;
 
 $activePlans = $db->getValue(
-    "SELECT COUNT(*) FROM subscription_plans WHERE is_active = 1 AND (deleted_at IS NULL OR deleted_at = '')"
+    "SELECT COUNT(*) FROM subscription_plans WHERE is_active = 1 AND deleted_at IS NULL"
 ) ?? 0;
 
 // =============================================
@@ -157,26 +196,26 @@ $pendingCampuses = 0;
 
 try {
     $tableExists = $db->getValue(
-        "SELECT COUNT(*) FROM information_schema.tables 
+        "SELECT COUNT(*) FROM information_schema.tables
          WHERE table_schema = ? AND table_name = 'school_requests'",
         [DB_NAME]
     );
 
     if ($tableExists > 0) {
         $pendingSchools = $db->getValue(
-            "SELECT COUNT(*) FROM school_requests WHERE status = 'pending' AND (deleted_at IS NULL OR deleted_at = '')"
+            "SELECT COUNT(*) FROM school_requests WHERE status = 'pending' AND deleted_at IS NULL"
         ) ?? 0;
     }
 
     $campusTableExists = $db->getValue(
-        "SELECT COUNT(*) FROM information_schema.tables 
+        "SELECT COUNT(*) FROM information_schema.tables
          WHERE table_schema = ? AND table_name = 'campus_requests'",
         [DB_NAME]
     );
 
     if ($campusTableExists > 0) {
         $pendingCampuses = $db->getValue(
-            "SELECT COUNT(*) FROM campus_requests WHERE status = 'pending' AND (deleted_at IS NULL OR deleted_at = '')"
+            "SELECT COUNT(*) FROM campus_requests WHERE status = 'pending' AND deleted_at IS NULL"
         ) ?? 0;
     }
 
@@ -189,35 +228,35 @@ try {
 // GET RECENT ACTIVITY
 // =============================================
 $recentActivity = $db->fetchAll(
-    "SELECT 
+    "SELECT
         'tenant_created' as type,
         tenant_name as name,
         created_at,
         'Tenant' as category
-    FROM tenants 
+    FROM tenants
     WHERE deleted_at IS NULL
-    
+
     UNION ALL
-    
-    SELECT 
+
+    SELECT
         'school_created' as type,
         school_name as name,
         created_at,
         'School' as category
-    FROM schools 
+    FROM schools
     WHERE deleted_at IS NULL
-    
+
     UNION ALL
-    
-    SELECT 
+
+    SELECT
         'user_created' as type,
         username as name,
         created_at,
         'User' as category
-    FROM platform_users 
+    FROM platform_users
     WHERE deleted_at IS NULL
-    
-    ORDER BY created_at DESC 
+
+    ORDER BY created_at DESC
     LIMIT 10"
 );
 
@@ -225,10 +264,10 @@ $recentActivity = $db->fetchAll(
 // GET RECENT TENANTS
 // =============================================
 $recentTenants = $db->fetchAll(
-    "SELECT id, tenant_name, tenant_code, status, created_at 
-     FROM tenants 
-     WHERE deleted_at IS NULL 
-     ORDER BY created_at DESC 
+    "SELECT id, tenant_name, tenant_code, status, created_at
+     FROM tenants
+     WHERE deleted_at IS NULL
+     ORDER BY created_at DESC
      LIMIT 5"
 );
 
@@ -240,8 +279,8 @@ $recentSubscriptions = $db->fetchAll(
      FROM tenant_subscriptions ts
      JOIN tenants t ON ts.tenant_id = t.id
      JOIN subscription_plans sp ON ts.plan_id = sp.id
-     WHERE ts.status IN ('active', 'trial') AND (ts.deleted_at IS NULL OR ts.deleted_at = '')
-     ORDER BY ts.created_at DESC 
+     WHERE ts.status IN ('active', 'trial') AND ts.deleted_at IS NULL
+     ORDER BY ts.created_at DESC
      LIMIT 5"
 );
 
@@ -251,14 +290,14 @@ $recentSubscriptions = $db->fetchAll(
 $totalRevenue = $db->getValue(
     "SELECT SUM(sp.price) FROM tenant_subscriptions ts
      JOIN subscription_plans sp ON ts.plan_id = sp.id
-     WHERE ts.status IN ('active', 'trial') AND (ts.deleted_at IS NULL OR ts.deleted_at = '')
+     WHERE ts.status IN ('active', 'trial') AND ts.deleted_at IS NULL
      AND sp.price > 0"
 ) ?? 0;
 
 $monthlyRevenue = $db->getValue(
     "SELECT SUM(sp.price) FROM tenant_subscriptions ts
      JOIN subscription_plans sp ON ts.plan_id = sp.id
-     WHERE ts.status IN ('active', 'trial') AND (ts.deleted_at IS NULL OR ts.deleted_at = '')
+     WHERE ts.status IN ('active', 'trial') AND ts.deleted_at IS NULL
      AND sp.price > 0 AND MONTH(ts.created_at) = MONTH(NOW()) AND YEAR(ts.created_at) = YEAR(NOW())"
 ) ?? 0;
 
@@ -284,9 +323,10 @@ if ($hour >= 12 && $hour < 17) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title><?php echo $pageTitle; ?></title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <?php /* [MOBILE-ASSETS] Stylesheets served from the app's own origin. */ ?>
+    <link href="/assets/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <link href="/assets/vendor/fontawesome/all.min.css" rel="stylesheet">
+    <link href="/assets/vendor/inter/inter.css" rel="stylesheet">
     <style>
         /* ================================================ */
         /* GLOBAL RESET */
@@ -1444,7 +1484,8 @@ if ($hour >= 12 && $hour < 17) {
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <?php /* [MOBILE-ASSETS] JavaScript served from the app's own origin. */ ?>
+    <script src="/assets/vendor/bootstrap/bootstrap.bundle.min.js"></script>
     <script>
         // ================================================
         // SIDEBAR TOGGLE (toggleSidebar() is provided by the
