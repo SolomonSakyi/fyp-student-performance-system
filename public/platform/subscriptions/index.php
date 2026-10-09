@@ -2,11 +2,41 @@
 
 /**
  * Subscription Management - Super Admin manages subscription plans
- * 
+ *
  * @package EduTrack
  * @subpackage Platform\Subscriptions
- * @version 2.1
+ * @version 2.2
  * @filepath public/platform/subscriptions/index.php
+ *
+ * v2.2 change (2026-10-09) [QUERY-FIX + MOBILE-ASSETS]:
+ *   Two changes.
+ *
+ *   1. QUERY-FIX: the page carried four malformed second comparisons
+ *      on the deleted_at column, all of the form:
+ *          (deleted_at IS NULL OR deleted_at = '')
+ *      deleted_at is a datetime column. Comparing it to an empty
+ *      string is a type-mismatched comparison that MariaDB 10.4
+ *      (local dev) tolerates but that MySQL 9.7 (Railway production)
+ *      can reject, producing an uncaught PDOException and a 500. The
+ *      soft-delete predicate is deleted_at IS NULL alone. The OR
+ *      branch is removed at all four sites:
+ *        1. $plans query.
+ *        2. $totalSubscriptions query.
+ *        3. $totalTenants query.
+ *        4. $activePlans query.
+ *      This is the same class of fix applied to dashboard.php v1.1,
+ *      schools/index.php v1.1, upgrade.php v2.1, and platform/index.php
+ *      v2.3.
+ *
+ *   2. MOBILE-ASSETS: the four CDN references in <head> and before
+ *      </body> were replaced by /assets/vendor/ paths, matching the
+ *      change applied to dashboard.php v1.2, upgrade.php v2.1, and
+ *      platform/index.php v2.3. The webfont files are already on the
+ *      container under public/assets/vendor/webfonts/ from commit
+ *      34486ae.
+ *
+ *   Every other line, query, variable, markup block, style rule, and
+ *   script is byte-identical to v2.1.
  *
  * v2.1 change (2026-10-08) [SWEEP X-1 + SIDEBAR + REPAIR]:
  *   Platform-subscriptions sweep, X-1 in full, plus sidebar
@@ -132,8 +162,8 @@ $db = DatabaseHelper::getInstance();
 // GET ALL PLANS
 // =============================================
 $plans = $db->fetchAll(
-    "SELECT * FROM subscription_plans 
-     WHERE (deleted_at IS NULL OR deleted_at = '')
+    "SELECT * FROM subscription_plans
+     WHERE deleted_at IS NULL
      ORDER BY price ASC"
 );
 
@@ -141,15 +171,15 @@ $plans = $db->fetchAll(
 // GET STATS
 // =============================================
 $totalSubscriptions = $db->getValue(
-    "SELECT COUNT(*) FROM tenant_subscriptions WHERE status IN ('active', 'trial') AND (deleted_at IS NULL OR deleted_at = '')"
+    "SELECT COUNT(*) FROM tenant_subscriptions WHERE status IN ('active', 'trial') AND deleted_at IS NULL"
 );
 
 $totalTenants = $db->getValue(
-    "SELECT COUNT(*) FROM tenants WHERE (deleted_at IS NULL OR deleted_at = '')"
+    "SELECT COUNT(*) FROM tenants WHERE deleted_at IS NULL"
 );
 
 $activePlans = $db->getValue(
-    "SELECT COUNT(*) FROM subscription_plans WHERE is_active = 1 AND (deleted_at IS NULL OR deleted_at = '')"
+    "SELECT COUNT(*) FROM subscription_plans WHERE is_active = 1 AND deleted_at IS NULL"
 );
 
 $totalPlans = count($plans);
@@ -184,9 +214,10 @@ require_once $projectRoot . '/app/views/partials/platform-sidebar.php';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title><?php echo $pageTitle; ?></title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <?php /* [MOBILE-ASSETS] Stylesheets served from the app's own origin. */ ?>
+    <link href="/assets/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <link href="/assets/vendor/fontawesome/all.min.css" rel="stylesheet">
+    <link href="/assets/vendor/inter/inter.css" rel="stylesheet">
     <style>
         /* ================================================ */
         /* GLOBAL RESET */
@@ -1059,10 +1090,10 @@ require_once $projectRoot . '/app/views/partials/platform-sidebar.php';
                                                         <span class="text-muted small">/ <?php echo $plan['billing_cycle'] ?? 'monthly'; ?></span>
                                                     <?php endif; ?>
                                                 </td>
-                                                <td><?php echo (isset($plan['max_schools']) && $plan['max_schools'] > 0) ? (int)$plan['max_schools'] : '∞'; ?></td>
-                                                <td><?php echo (isset($plan['max_staff']) && $plan['max_staff'] > 0) ? (int)$plan['max_staff'] : '∞'; ?></td>
-                                                <td><?php echo (isset($plan['max_students']) && $plan['max_students'] > 0) ? (int)$plan['max_students'] : '∞'; ?></td>
-                                                <td><?php echo (isset($plan['max_storage_mb']) && $plan['max_storage_mb'] > 0) ? (int)$plan['max_storage_mb'] . ' MB' : '∞'; ?></td>
+                                                <td><?php echo (isset($plan['max_schools']) && $plan['max_schools'] > 0) ? (int)$plan['max_schools'] : 'âˆž'; ?></td>
+                                                <td><?php echo (isset($plan['max_staff']) && $plan['max_staff'] > 0) ? (int)$plan['max_staff'] : 'âˆž'; ?></td>
+                                                <td><?php echo (isset($plan['max_students']) && $plan['max_students'] > 0) ? (int)$plan['max_students'] : 'âˆž'; ?></td>
+                                                <td><?php echo (isset($plan['max_storage_mb']) && $plan['max_storage_mb'] > 0) ? (int)$plan['max_storage_mb'] . ' MB' : 'âˆž'; ?></td>
                                                 <td>
                                                     <?php
                                                     $statusClass = (isset($plan['is_active']) && $plan['is_active'] == 1) ? 'active' : 'inactive';
@@ -1116,7 +1147,8 @@ require_once $projectRoot . '/app/views/partials/platform-sidebar.php';
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <?php /* [MOBILE-ASSETS] JavaScript served from the app's own origin. */ ?>
+    <script src="/assets/vendor/bootstrap/bootstrap.bundle.min.js"></script>
     <script>
         // ================================================
         // LOGOUT
