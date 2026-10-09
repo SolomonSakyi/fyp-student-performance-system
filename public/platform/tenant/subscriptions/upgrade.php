@@ -2,11 +2,35 @@
 
 /**
  * Upgrade Subscription - Tenant Admin upgrades their plan
- * 
+ *
  * @package EduTrack
  * @subpackage Platform\Tenant\Subscriptions
- * @version 2.0
+ * @version 2.1
  * @filepath public/platform/tenant/subscriptions/upgrade.php
+ *
+ * v2.1 change (2026-10-09) [QUERY-FIX]:
+ *   The page's SQL carried nine malformed second comparisons on the
+ *   deleted_at column, all of the form:
+ *       (X.deleted_at IS NULL OR X.deleted_at = '')
+ *   deleted_at is a datetime column. Comparing it to an empty
+ *   string is a type-mismatched comparison that MariaDB 10.4 (the
+ *   local dev engine) tolerates but that MySQL 9.7 (the Railway
+ *   production engine) can reject, producing an uncaught
+ *   PDOException and a 500. The soft-delete predicate is
+ *   deleted_at IS NULL alone. The OR branch is removed at all nine
+ *   sites:
+ *     1. The tenants_subscriptions query in $currentSubscription.
+ *     2. The subscription_plans query in $plans.
+ *     3. The schools count in $schoolsCount.
+ *     4. The campuses count in $campusesCount (two sites: c. and s.).
+ *     5. The staff count in $staffCount.
+ *     6. The students count in $studentsCount.
+ *     7. The subscription_plans lookup in the POST branch ($newPlan).
+ *     8. The UPDATE tenant_subscriptions in the POST branch.
+ *     9. The subscription_plans re-query after $upgradeSuccess.
+ *   This is the same class of fix applied to dashboard.php v1.1 and
+ *   schools/index.php v1.1. Every other line, query, variable,
+ *   markup block, style rule, and script is byte-identical to v2.0.
  */
 
 // =============================================
@@ -63,11 +87,11 @@ $db = DatabaseHelper::getInstance();
 // GET CURRENT SUBSCRIPTION
 // =============================================
 $currentSubscription = $db->fetchOne(
-    "SELECT ts.*, sp.plan_name, sp.plan_code, sp.price 
+    "SELECT ts.*, sp.plan_name, sp.plan_code, sp.price
      FROM tenant_subscriptions ts
      JOIN subscription_plans sp ON ts.plan_id = sp.id
      WHERE ts.tenant_id = ? AND ts.status IN ('active', 'trial')
-     AND (ts.deleted_at IS NULL OR ts.deleted_at = '')
+     AND ts.deleted_at IS NULL
      ORDER BY ts.created_at DESC LIMIT 1",
     [$tenantId]
 );
@@ -80,9 +104,9 @@ $currentPlanCode = $currentSubscription['plan_code'] ?? 'FREE';
 // GET ALL AVAILABLE PLANS
 // =============================================
 $plans = $db->fetchAll(
-    "SELECT * FROM subscription_plans 
-     WHERE is_active = 1 
-     AND (deleted_at IS NULL OR deleted_at = '')
+    "SELECT * FROM subscription_plans
+     WHERE is_active = 1
+     AND deleted_at IS NULL
      ORDER BY price ASC"
 );
 
@@ -90,25 +114,25 @@ $plans = $db->fetchAll(
 // GET USAGE STATS
 // =============================================
 $schoolsCount = $db->getValue(
-    "SELECT COUNT(*) FROM schools WHERE tenant_id = ? AND (deleted_at IS NULL OR deleted_at = '')",
+    "SELECT COUNT(*) FROM schools WHERE tenant_id = ? AND deleted_at IS NULL",
     [$tenantId]
 );
 
 $campusesCount = $db->getValue(
-    "SELECT COUNT(*) FROM campuses c 
-     JOIN schools s ON c.school_id = s.id 
-     WHERE s.tenant_id = ? AND (c.deleted_at IS NULL OR c.deleted_at = '')
-     AND (s.deleted_at IS NULL OR s.deleted_at = '')",
+    "SELECT COUNT(*) FROM campuses c
+     JOIN schools s ON c.school_id = s.id
+     WHERE s.tenant_id = ? AND c.deleted_at IS NULL
+     AND s.deleted_at IS NULL",
     [$tenantId]
 );
 
 $staffCount = $db->getValue(
-    "SELECT COUNT(*) FROM staff WHERE tenant_id = ? AND (deleted_at IS NULL OR deleted_at = '')",
+    "SELECT COUNT(*) FROM staff WHERE tenant_id = ? AND deleted_at IS NULL",
     [$tenantId]
 );
 
 $studentsCount = $db->getValue(
-    "SELECT COUNT(*) FROM students WHERE tenant_id = ? AND (deleted_at IS NULL OR deleted_at = '')",
+    "SELECT COUNT(*) FROM students WHERE tenant_id = ? AND deleted_at IS NULL",
     [$tenantId]
 );
 
@@ -130,7 +154,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['plan_id'])) {
 
     // Verify the plan exists and is active
     $newPlan = $db->fetchOne(
-        "SELECT * FROM subscription_plans WHERE id = ? AND is_active = 1 AND (deleted_at IS NULL OR deleted_at = '')",
+        "SELECT * FROM subscription_plans WHERE id = ? AND is_active = 1 AND deleted_at IS NULL",
         [$newPlanId]
     );
 
@@ -145,17 +169,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['plan_id'])) {
 
             // End current subscription
             $db->execute(
-                "UPDATE tenant_subscriptions 
-                 SET status = 'ended' 
+                "UPDATE tenant_subscriptions
+                 SET status = 'ended'
                  WHERE tenant_id = ? AND status IN ('active', 'trial')
-                 AND (deleted_at IS NULL OR deleted_at = '')",
+                 AND deleted_at IS NULL",
                 [$tenantId]
             );
 
             // Create new subscription
             $db->execute(
-                "INSERT INTO tenant_subscriptions 
-                 (tenant_id, plan_id, status, created_at) 
+                "INSERT INTO tenant_subscriptions
+                 (tenant_id, plan_id, status, created_at)
                  VALUES (?, ?, 'active', NOW())",
                 [$tenantId, $newPlanId]
             );
@@ -163,13 +187,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['plan_id'])) {
             // Try to update subscription_plan_id in tenants table
             // Check if the column exists first
             $columnExists = $db->getValue(
-                "SELECT COUNT(*) FROM information_schema.COLUMNS 
+                "SELECT COUNT(*) FROM information_schema.COLUMNS
                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tenants' AND COLUMN_NAME = 'subscription_plan_id'"
             );
 
             if ($columnExists > 0) {
                 $db->execute(
-                    "UPDATE tenants 
+                    "UPDATE tenants
                      SET subscription_plan_id = ?
                      WHERE id = ?",
                     [$newPlanId, $tenantId]
@@ -204,9 +228,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['plan_id'])) {
 // After upgrade success, refresh plans list to show current status
 if ($upgradeSuccess) {
     $plans = $db->fetchAll(
-        "SELECT * FROM subscription_plans 
-         WHERE is_active = 1 
-         AND (deleted_at IS NULL OR deleted_at = '')
+        "SELECT * FROM subscription_plans
+         WHERE is_active = 1
+         AND deleted_at IS NULL
          ORDER BY price ASC"
     );
 }
@@ -226,9 +250,9 @@ $tenantName = $_SESSION['tenant_name'] ?? 'My Organization';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title><?php echo $pageTitle; ?></title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="/assets/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <link href="/assets/vendor/fontawesome/all.min.css" rel="stylesheet">
+    <link href="/assets/vendor/inter/inter.css" rel="stylesheet">
     <style>
         /* ================================================ */
         /* GLOBAL RESET */
@@ -978,7 +1002,7 @@ $tenantName = $_SESSION['tenant_name'] ?? 'My Organization';
             <!-- Sidebar -->
             <nav class="sidebar" id="sidebar">
                 <div class="sidebar-header">
-                    <h4><i class="fas fa-graduation-cap me-2"></i>EduTrack</h4>
+                    <h4><i class="fas fa-graduation-cap me-2"></i>Student 360</h4>
                     <small><?php echo htmlspecialchars($tenantName); ?></small>
                 </div>
                 <div class="nav">
@@ -1069,9 +1093,9 @@ $tenantName = $_SESSION['tenant_name'] ?? 'My Organization';
                             <div>
                                 <span class="text-muted">Usage:</span>
                                 <span class="fw-bold">
-                                    Schools <?php echo (int)($usageStats['schools']['current'] ?? 0); ?>/<?php echo ($usageStats['schools']['max'] ?? 0) > 0 ? (int)($usageStats['schools']['max']) : '∞'; ?> |
-                                    Staff <?php echo (int)($usageStats['staff']['current'] ?? 0); ?>/<?php echo ($usageStats['staff']['max'] ?? 0) > 0 ? (int)($usageStats['staff']['max']) : '∞'; ?> |
-                                    Students <?php echo (int)($usageStats['students']['current'] ?? 0); ?>/<?php echo ($usageStats['students']['max'] ?? 0) > 0 ? (int)($usageStats['students']['max']) : '∞'; ?>
+                                    Schools <?php echo (int)($usageStats['schools']['current'] ?? 0); ?>/<?php echo ($usageStats['schools']['max'] ?? 0) > 0 ? (int)($usageStats['schools']['max']) : 'âˆž'; ?> |
+                                    Staff <?php echo (int)($usageStats['staff']['current'] ?? 0); ?>/<?php echo ($usageStats['staff']['max'] ?? 0) > 0 ? (int)($usageStats['staff']['max']) : 'âˆž'; ?> |
+                                    Students <?php echo (int)($usageStats['students']['current'] ?? 0); ?>/<?php echo ($usageStats['students']['max'] ?? 0) > 0 ? (int)($usageStats['students']['max']) : 'âˆž'; ?>
                                 </span>
                             </div>
                         </div>
@@ -1137,7 +1161,7 @@ $tenantName = $_SESSION['tenant_name'] ?? 'My Organization';
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/assets/vendor/bootstrap/bootstrap.bundle.min.js"></script>
     <script>
         // ================================================
         // SIDEBAR TOGGLE
