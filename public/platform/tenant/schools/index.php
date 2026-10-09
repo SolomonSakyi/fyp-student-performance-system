@@ -2,11 +2,31 @@
 
 /**
  * Schools List - Tenant Admin views all schools
- * 
+ *
  * @package EduTrack
  * @subpackage Platform\Tenant\Schools
- * @version 1.0
+ * @version 1.1
  * @filepath public/platform/tenant/schools/index.php
+ *
+ * v1.1 change (2026-10-08) [QUERY-FIX]:
+ *   The page's SQL carried five malformed second comparisons on the
+ *   deleted_at column, all of the form:
+ *       (deleted_at IS NULL OR deleted_at = '')
+ *   deleted_at is a datetime column. Comparing it to an empty
+ *   string is a type-mismatched comparison that MariaDB 10.4 (the
+ *   local dev engine) tolerates but that MySQL 9.7 (the Railway
+ *   production engine) can reject, producing an uncaught
+ *   PDOException and a 500. The soft-delete predicate is
+ *   deleted_at IS NULL alone. The OR branch is removed at all five
+ *   sites:
+ *     1. The tenants query inside the $tenant fetch.
+ *     2. The schools main query.
+ *     3. The campuses subquery (campus_count).
+ *     4. The staff subquery (staff_count).
+ *     5. The students subquery (student_count).
+ *   This is the same class of fix that dashboard.php v1.1 applied.
+ *   Every other line, query, variable, markup block, style rule,
+ *   and script is byte-identical to v1.0.
  *
  * v1.0 change (2026-10-05) [SWEEP]:
  *   Second file of the tenant-surface sweep. Three changes:
@@ -19,7 +39,7 @@
  *       'EduTrack Tenant' to 'Student 360 Tenant'.
  *     - The @version tag was unified to 1.0.
  *   Every other line of the file is byte-identical to the previous
- *   version (2.0). The @package tag remains 'EduTrack' — it names
+ *   version (2.0). The @package tag remains 'EduTrack' â€” it names
  *   the codebase package, not the product, and is identifier-only.
  */
 
@@ -77,7 +97,7 @@ $db = DatabaseHelper::getInstance();
 // GET TENANT NAME
 // =============================================
 $tenant = $db->fetchOne(
-    "SELECT tenant_name FROM tenants WHERE id = ? AND (deleted_at IS NULL OR deleted_at = '')",
+    "SELECT tenant_name FROM tenants WHERE id = ? AND deleted_at IS NULL",
     [$tenantId]
 );
 $tenantName = $tenant['tenant_name'] ?? 'My Organization';
@@ -91,12 +111,12 @@ $statusFilter = isset($_GET['status']) ? trim($_GET['status']) : '';
 // =============================================
 // GET SCHOOLS
 // =============================================
-$sql = "SELECT s.*, 
-        (SELECT COUNT(*) FROM campuses c WHERE c.school_id = s.id AND (c.deleted_at IS NULL OR c.deleted_at = '')) as campus_count,
-        (SELECT COUNT(*) FROM staff st WHERE st.school_id = s.id AND (st.deleted_at IS NULL OR st.deleted_at = '')) as staff_count,
-        (SELECT COUNT(*) FROM students stu WHERE stu.school_id = s.id AND (stu.deleted_at IS NULL OR stu.deleted_at = '')) as student_count
+$sql = "SELECT s.*,
+        (SELECT COUNT(*) FROM campuses c WHERE c.school_id = s.id AND c.deleted_at IS NULL) as campus_count,
+        (SELECT COUNT(*) FROM staff st WHERE st.school_id = s.id AND st.deleted_at IS NULL) as staff_count,
+        (SELECT COUNT(*) FROM students stu WHERE stu.school_id = s.id AND stu.deleted_at IS NULL) as student_count
         FROM schools s
-        WHERE s.tenant_id = ? AND (s.deleted_at IS NULL OR s.deleted_at = '')";
+        WHERE s.tenant_id = ? AND s.deleted_at IS NULL";
 
 $params = [$tenantId];
 
